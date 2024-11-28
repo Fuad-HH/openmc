@@ -35,6 +35,7 @@ option(OPENMC_USE_MPI         "Enable MPI"                                      
 option(OPENMC_USE_MCPL        "Enable MCPL"                                          OFF)
 option(OPENMC_USE_NCRYSTAL    "Enable support for NCrystal scattering"               OFF)
 option(OPENMC_USE_UWUW        "Enable UWUW"                                          OFF)
+option(OPENMC_USE_PP          "Enable Pumi-PIC based tracklength tally"              OFF)
 
 # Warnings for deprecated options
 foreach(OLD_OPT IN ITEMS "openmp" "profile" "coverage" "dagmc" "libmesh")
@@ -130,6 +131,16 @@ if(OPENMC_USE_DAGMC)
   if(OPENMC_USE_UWUW AND NOT DAGMC_BUILD_UWUW)
     message(FATAL_ERROR "UWUW is enabled but DAGMC was not configured with UWUW.")
   endif()
+endif()
+
+#===============================================================================
+# DAGMC TrackLength Tally Acceleration
+#===============================================================================
+
+if (OPENMC_USE_PP)
+  message(STATUS "Using Pumi-PIC for TrackLength Tally Acceleration")
+  find_package(pumipic REQUIRED)
+  message(STATUS "Found Pumi-PIC: ${pumipic_DIR}")
 endif()
 
 #===============================================================================
@@ -444,6 +455,11 @@ list(APPEND libopenmc_SOURCES
   src/external/quartic_solver.cpp
   src/external/Faddeeva.cc)
 
+if(OPENMC_USE_PP)
+  list(APPEND libopenmc_SOURCES
+          src/pumipic_particles_data_structure.cpp)
+endif()
+
 # For Visual Studio compilers
 if(MSVC)
   # Use static library (otherwise explicit symbol portings are needed)
@@ -523,6 +539,11 @@ endif()
 if(OPENMC_USE_LIBMESH)
   target_compile_definitions(libopenmc PRIVATE LIBMESH)
   target_link_libraries(libopenmc PkgConfig::LIBMESH)
+endif()
+
+if(OPENMC_USE_PP)
+  target_compile_definitions(libopenmc PUBLIC -DOPENMC_USING_PUMIPIC)
+  target_link_libraries(libopenmc pumipic::pumipic)
 endif()
 
 if (PNG_FOUND)

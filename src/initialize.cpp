@@ -41,6 +41,63 @@
 #include "libmesh/libmesh.h"
 #endif
 
+#ifdef OPENMC_USING_PUMIPIC
+#include "pumipic_particles_data_structure.h"
+
+pumiinopenmc::PPPS* pp_create_particle_structure(Omega_h::Mesh mesh, pumipic::lid_t numPtcls){
+  Omega_h::Int ne = mesh.nelems();
+  pumiinopenmc::PPPS::kkLidView ptcls_per_elem("ptcls_per_elem", ne);
+  pumiinopenmc::PPPS::kkGidView element_gids("element_gids", ne);
+
+  Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace> policy;
+
+#ifdef PP_USE_GPU // this flag is not added for cpu it will go though else which is okay
+  printf("[INFO] Using GPU for simulation...");
+  policy =
+    Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace>(10000, Kokkos::AUTO());
+#else
+  openmc::write_message("PumiPIC Using CPU for simulation...\n");
+  policy = Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace>(10000, Kokkos::AUTO());
+#endif
+
+  // needs pumipic with cabana
+  pumiinopenmc::PPPS *ptcls =
+    new pumipic::DPS<pumiinopenmc::PPParticle>(policy, ne, numPtcls, ptcls_per_elem, element_gids);
+
+  return ptcls;
+}
+
+void load_pumipic_mesh_and_init_particles(int& argc, char**& argv) {
+  openmc::write_message(1, "Reading the Omega_h mesh " + openmc::settings::oh_mesh_fname + " to tally tracklength\n");
+  pumiinopenmc::init_pumi_libs(argc, argv);
+
+  if (openmc::settings::oh_mesh_fname.empty()){
+    openmc::fatal_error("Omega_h mesh for PumiPIC is not given. Provide --ohMesh = <osh file>");
+  }
+  Omega_h::Mesh full_mesh = Omega_h::binary::read(openmc::settings::oh_mesh_fname, &pumiinopenmc::oh_lib);
+  if (full_mesh.dim() != 3){
+    openmc::fatal_error("PumiPIC only works for 3D mesh now.\n");
+  }
+  Omega_h::LO nelems = full_mesh.nelems();
+  openmc::write_message(1, "PumiPIC Loaded mesh " + openmc::settings::oh_mesh_fname + " with " +  std::to_string(nelems) + " elements...\n");
+
+  long int real_n_particles = openmc::settings::n_particles * 1.2;
+  Omega_h::Write<Omega_h::LO> owners(nelems, 0, "owners");
+  // all the particles are initialized in element 0 to do an initial search to find the starting locations
+  // of the openmc given particles.
+  Omega_h::parallel_for(1,
+    OMEGA_H_LAMBDA(const int id){owners[0]=real_n_particles;});
+  pumipic::Mesh picParts(full_mesh, Omega_h::LOs(owners));
+  openmc::write_message(1, "PumiPIC mesh partitioned...\n");
+  Omega_h::Mesh *mesh = picParts.mesh();
+  openmc::settings::p_ppMesh = std::shared_ptr<Omega_h::Mesh>(mesh, [](Omega_h::Mesh*) {
+    // No-op deleter: Do nothing
+  });
+  pumiinopenmc::pumipic_ptcls = pp_create_particle_structure(*mesh, real_n_particles);
+}
+#endif
+
+
 int openmc_init(int argc, char* argv[], const void* intracomm)
 {
   using namespace openmc;
@@ -62,6 +119,10 @@ int openmc_init(int argc, char* argv[], const void* intracomm)
   int err = parse_command_line(argc, argv);
   if (err)
     return err;
+
+#ifdef OPENMC_USING_PUMIPIC
+  load_pumipic_mesh_and_init_particles(argc, argv);
+#endif
 
 #ifdef LIBMESH
   const int n_threads = num_threads();
@@ -268,6 +329,11 @@ int parse_command_line(int argc, char* argv[])
         if (mpi::master) {
           warning("Ignoring number of threads specified on command line.");
         }
+#endif
+#ifdef OPENMC_USING_PUMIPIC
+      } else if (arg == "--ohMesh") {
+        settings::oh_mesh_fname = std::string(argv[i+1]);
+        i += 1; // skip the file name
 #endif
 
       } else if (arg == "-?" || arg == "-h" || arg == "--help") {

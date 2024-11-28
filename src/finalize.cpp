@@ -27,6 +27,10 @@
 #include "openmc/volume_calc.h"
 #include "openmc/weight_windows.h"
 
+#ifdef OPENMC_USING_PUMIPIC
+#include "pumipic_particles_data_structure.h"
+#endif
+
 #include "xtensor/xview.hpp"
 
 namespace openmc {
@@ -166,6 +170,14 @@ int openmc_finalize()
 #ifdef LIBMESH
   settings::libmesh_init.reset();
 #endif
+
+#ifdef OPENMC_USING_PUMIPIC
+  delete pumiinopenmc::pumipic_ptcls;
+  pumiinopenmc::pumipic_ptcls = nullptr;
+  delete pumiinopenmc::pp_lib;
+  pumiinopenmc::pp_lib = nullptr;
+#endif
+
 
   // Free all MPI types
 #ifdef OPENMC_MPI

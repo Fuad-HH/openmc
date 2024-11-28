@@ -60,6 +60,14 @@ const bool LIBMESH_ENABLED = true;
 const bool LIBMESH_ENABLED = false;
 #endif
 
+
+#ifdef OPENMC_USING_PUMIPIC
+namespace  settings {
+std::shared_ptr<Omega_h::Mesh> p_ppMesh;
+} // namespace settings
+
+#endif
+
 namespace model {
 
 std::unordered_map<int32_t, int32_t> mesh_map;
