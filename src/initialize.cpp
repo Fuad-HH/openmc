@@ -36,6 +36,9 @@
 #include "openmc/timer.h"
 #include "openmc/vector.h"
 #include "openmc/weight_windows.h"
+#ifdef OPENMC_USING_PUMIPIC
+#include "pumipic_particles_data_structure.h"
+#endif
 
 #ifdef LIBMESH
 #include "libmesh/libmesh.h"
@@ -50,6 +53,11 @@ pumiinopenmc::PPPS* pp_create_particle_structure(Omega_h::Mesh mesh, pumipic::li
   pumiinopenmc::PPPS::kkGidView element_gids("element_gids", ne);
 
   Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace> policy;
+
+  Omega_h::parallel_for(mesh.nelems(),
+    OMEGA_H_LAMBDA(Omega_h::LO id){
+      ptcls_per_elem[id] = (id==0) ? numPtcls : 0;
+  });
 
 #ifdef PP_USE_GPU // this flag is not added for cpu it will go though else which is okay
   printf("[INFO] Using GPU for simulation...");
@@ -67,6 +75,38 @@ pumiinopenmc::PPPS* pp_create_particle_structure(Omega_h::Mesh mesh, pumipic::li
   return ptcls;
 }
 
+void start_pumi_particles_in_0th_element(Omega_h::Mesh& mesh, pumiinopenmc::PPPS* ptcls) {
+  // find the centroid of the 0th element
+  const auto& coords = mesh.coords();
+  const auto& tet2node = mesh.ask_down(Omega_h::REGION, Omega_h::VERT).ab2b;
+
+  Omega_h::Write<Omega_h::Real> centroid_of_el0(3, 0.0, "centroid");
+
+  auto find_centroid_of_el0 = OMEGA_H_LAMBDA(Omega_h::LO id) {
+    const auto nodes = Omega_h::gather_verts<4>(tet2node, id);
+    Omega_h::Few<Omega_h::Vector<3>, 4> tet_node_coords = Omega_h::gather_vectors<4, 3>(coords, nodes);
+    const auto centroid = o::average(tet_node_coords);
+    centroid_of_el0[0] = centroid[0];
+    centroid_of_el0[1] = centroid[1];
+    centroid_of_el0[2] = centroid[2];
+  };
+  Omega_h::parallel_for(1, find_centroid_of_el0, "find centroid of element 0");
+
+  // assign the location to all particles
+  auto init_loc = ptcls->get<0>();
+  auto pids     = ptcls->get<2>();
+
+  auto set_initial_positions = PS_LAMBDA(const int &e, const int &pid, const int &mask) {
+    if (mask>0) {
+      pids(pid) = pid;
+      init_loc(pid, 0) = centroid_of_el0[0];
+      init_loc(pid, 1) = centroid_of_el0[1];
+      init_loc(pid, 2) = centroid_of_el0[2];
+    }
+  };
+  pumipic::parallel_for(ptcls, set_initial_positions, "set initial particle positions");
+}
+
 void load_pumipic_mesh_and_init_particles(int& argc, char**& argv) {
   openmc::write_message(1, "Reading the Omega_h mesh " + openmc::settings::oh_mesh_fname + " to tally tracklength\n");
   pumiinopenmc::init_pumi_libs(argc, argv);
@@ -74,28 +114,32 @@ void load_pumipic_mesh_and_init_particles(int& argc, char**& argv) {
   if (openmc::settings::oh_mesh_fname.empty()){
     openmc::fatal_error("Omega_h mesh for PumiPIC is not given. Provide --ohMesh = <osh file>");
   }
-  Omega_h::Mesh full_mesh = Omega_h::binary::read(openmc::settings::oh_mesh_fname, &pumiinopenmc::oh_lib);
-  if (full_mesh.dim() != 3){
+  pumiinopenmc::full_mesh_ = Omega_h::binary::read(openmc::settings::oh_mesh_fname, &pumiinopenmc::oh_lib);
+  if (pumiinopenmc::full_mesh_.dim() != 3){
     openmc::fatal_error("PumiPIC only works for 3D mesh now.\n");
   }
-  Omega_h::LO nelems = full_mesh.nelems();
+  Omega_h::LO nelems = pumiinopenmc::full_mesh_.nelems();
   openmc::write_message(1, "PumiPIC Loaded mesh " + openmc::settings::oh_mesh_fname + " with " +  std::to_string(nelems) + " elements...\n");
 
-  long int real_n_particles = openmc::settings::n_particles * 1.2;
+  long int real_n_particles = openmc::settings::n_particles;
   Omega_h::Write<Omega_h::LO> owners(nelems, 0, "owners");
   // all the particles are initialized in element 0 to do an initial search to find the starting locations
   // of the openmc given particles.
-  Omega_h::parallel_for(1,
-    OMEGA_H_LAMBDA(const int id){owners[0]=real_n_particles;});
-  pumipic::Mesh picParts(full_mesh, Omega_h::LOs(owners));
+  pumiinopenmc::p_picparts_ = new pumipic::Mesh(pumiinopenmc::full_mesh_, Omega_h::LOs(owners));
   openmc::write_message(1, "PumiPIC mesh partitioned...\n");
-  Omega_h::Mesh *mesh = picParts.mesh();
-  openmc::settings::p_ppMesh = std::shared_ptr<Omega_h::Mesh>(mesh, [](Omega_h::Mesh*) {
-    // No-op deleter: Do nothing
-  });
+  Omega_h::Mesh *mesh = pumiinopenmc::p_picparts_->mesh();
   pumiinopenmc::pumipic_ptcls = pp_create_particle_structure(*mesh, real_n_particles);
+  start_pumi_particles_in_0th_element(*mesh, pumiinopenmc::pumipic_ptcls);
+  pumiinopenmc::p_pumi_particle_at_elem_boundary_handler =
+    std::make_unique<pumiinopenmc::PumiParticleAtElemBoundary>(mesh->nelems(),
+      pumiinopenmc::pumipic_ptcls->capacity());
+
+  openmc::write_message("PumiPIC Mesh and data structure created with "
+                        + std::to_string(pumiinopenmc::p_picparts_->mesh()->nelems())
+                        + " and " + std::to_string(pumiinopenmc::pumipic_ptcls->capacity())
+                        + " as particle structure capacity\n");
 }
-#endif
+#endif // OPENMC_USING_PUMIPIC
 
 
 int openmc_init(int argc, char* argv[], const void* intracomm)

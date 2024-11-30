@@ -2,6 +2,11 @@
 #include "openmc/material.h"
 #include "openmc/simulation.h"
 #include "openmc/timer.h"
+#ifdef OPENMC_USING_PUMIPIC
+#include "pumipic_particles_data_structure.h"
+#include <pumipic_adjacency.hpp>
+#include <pumipic_adjacency.tpp>
+#endif
 
 namespace openmc {
 
@@ -58,6 +63,36 @@ void dispatch_xs_event(int64_t buffer_idx)
   }
 }
 
+#ifdef OPENMC_USING_PUMIPIC
+
+void find_initial_elements_of_pumipic_ptcls(int64_t n_particles) {
+  Omega_h::HostWrite<Omega_h::Real> h_particle_init_pos(3*n_particles, "particle initial position on host");
+#pragma  omp parallel for schedule(runtime)
+  for (int64_t i = 0; i<n_particles; i++) {
+    const auto particle_pos = simulation::particles[i].r();
+    h_particle_init_pos[i*3 + 0] = particle_pos[0];
+    h_particle_init_pos[i*3 + 1] = particle_pos[1];
+    h_particle_init_pos[i*3 + 2] = particle_pos[2];
+  }
+  Omega_h::Reals particle_init_pos(h_particle_init_pos);
+
+  // assign particle next positions
+  auto particle_dest = pumiinopenmc::pumipic_ptcls->get<1>();
+  auto set_particle_dest = PS_LAMBDA(const int &e, const int &pid, const int &mask){
+    if (mask>0 && pid < n_particles){
+      particle_dest(pid, 0) = particle_init_pos[pid*3+0];
+      particle_dest(pid, 1) = particle_init_pos[pid*3+1];
+      particle_dest(pid, 2) = particle_init_pos[pid*3+2];
+    }
+  };
+  pumipic::parallel_for(pumiinopenmc::pumipic_ptcls, set_particle_dest, "set initial position as dest to get initial elem");
+
+  pumiinopenmc::search_and_rebuild(true);
+}
+
+#endif
+
+
 void process_init_events(int64_t n_particles, int64_t source_offset)
 {
   simulation::time_event_init.start();
@@ -67,6 +102,11 @@ void process_init_events(int64_t n_particles, int64_t source_offset)
     dispatch_xs_event(i);
   }
   simulation::time_event_init.stop();
+
+  // pumipic work
+#ifdef OPENMC_USING_PUMIPIC
+  find_initial_elements_of_pumipic_ptcls(n_particles);
+#endif
 }
 
 void process_calculate_xs_events(SharedArray<EventQueueItem>& queue)

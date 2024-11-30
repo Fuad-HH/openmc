@@ -172,6 +172,8 @@ int openmc_finalize()
 #endif
 
 #ifdef OPENMC_USING_PUMIPIC
+  delete pumiinopenmc::p_picparts_;
+  pumiinopenmc::p_picparts_ = nullptr;
   delete pumiinopenmc::pumipic_ptcls;
   pumiinopenmc::pumipic_ptcls = nullptr;
   delete pumiinopenmc::pp_lib;

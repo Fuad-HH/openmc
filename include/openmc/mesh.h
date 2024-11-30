@@ -38,10 +38,6 @@
 #include "libmesh/point.h"
 #endif
 
-#ifdef OPENMC_USING_PUMIPIC
-#include <Omega_h_mesh.hpp>
-#endif
-
 namespace openmc {
 
 //==============================================================================
@@ -71,13 +67,6 @@ namespace settings {
 extern unique_ptr<libMesh::LibMeshInit> libmesh_init;
 extern const libMesh::Parallel::Communicator* libmesh_comm;
 } // namespace settings
-#endif
-
-#ifdef OPENMC_USING_PUMIPIC
-namespace  settings {
-extern std::shared_ptr<Omega_h::Mesh> p_ppMesh;
-} // namespace settings
-
 #endif
 
 class Mesh {
