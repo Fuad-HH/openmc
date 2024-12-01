@@ -26,6 +26,10 @@
 #include "openmc/track_output.h"
 #include "openmc/weight_windows.h"
 
+#ifdef OPENMC_USING_PUMIPIC
+#include "pumipic_particles_data_structure.h"
+#endif
+
 #ifdef _OPENMP
 #include <omp.h>
 #endif
@@ -196,6 +200,13 @@ int openmc_simulation_finalize()
   // Write tally results to tallies.out
   if (settings::output_tallies && mpi::master)
     write_tallies();
+
+#ifdef OPENMC_USING_PUMIPIC
+  const char* filename = "pumiFlux.vtk";
+  pumiinopenmc::p_pumi_particle_at_elem_boundary_handler->finalizeAndWritePumiFlux(filename);
+  openmc::write_message(1, "PumiPIC Flux written to " + std::string(filename));
+#endif
+
 
   // If weight window generators are present in this simulation,
   // write a weight windows file

@@ -87,6 +87,8 @@ public:
   void event_revive_from_secondary();
   void event_death();
 
+  void score_non_mesh_track_length_tallies(double distance);
+
   //! pulse-height recording
   void pht_collision_energy();
   void pht_secondary_particles();

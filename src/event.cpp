@@ -67,22 +67,31 @@ void dispatch_xs_event(int64_t buffer_idx)
 
 void find_initial_elements_of_pumipic_ptcls(int64_t n_particles) {
   Omega_h::HostWrite<Omega_h::Real> h_particle_init_pos(3*n_particles, "particle initial position on host");
+  Omega_h::Write<Omega_h::I8> h_part_in_adv_que(pumiinopenmc::pumi_ps_size, 0, "particle in advance queue init");
+  Omega_h::HostWrite<Omega_h::I8> inAdvQueue(h_part_in_adv_que);
+
 #pragma  omp parallel for schedule(runtime)
   for (int64_t i = 0; i<n_particles; i++) {
     const auto particle_pos = simulation::particles[i].r();
     h_particle_init_pos[i*3 + 0] = particle_pos[0];
     h_particle_init_pos[i*3 + 1] = particle_pos[1];
     h_particle_init_pos[i*3 + 2] = particle_pos[2];
+
+    inAdvQueue[i] = 1;
   }
   Omega_h::Reals particle_init_pos(h_particle_init_pos);
+  Omega_h::Read<Omega_h::I8> in_flight(h_part_in_adv_que);
 
   // assign particle next positions
   auto particle_dest = pumiinopenmc::pumipic_ptcls->get<1>();
+  auto in_fly = pumiinopenmc::pumipic_ptcls->get<3>();
   auto set_particle_dest = PS_LAMBDA(const int &e, const int &pid, const int &mask){
     if (mask>0 && pid < n_particles){
       particle_dest(pid, 0) = particle_init_pos[pid*3+0];
       particle_dest(pid, 1) = particle_init_pos[pid*3+1];
       particle_dest(pid, 2) = particle_init_pos[pid*3+2];
+
+      in_fly(pid) = in_flight[pid];
     }
   };
   pumipic::parallel_for(pumiinopenmc::pumipic_ptcls, set_particle_dest, "set initial position as dest to get initial elem");
@@ -153,10 +162,70 @@ void openmc_event_advance_wrapper()
   }
 }
 
+#ifdef OPENMC_USING_PUMIPIC
+void pumipic_event_advance_wrapper()
+{
+  // TODO rather than initializing every time, initialize once and use multiple times
+  // TODO replace n_particles with max_particles_in_flight
+  int64_t n_particles =
+    std::min(settings::max_particles_in_flight, simulation::work_per_rank);
+  Omega_h::HostWrite<Omega_h::Real> h_particle_dest_pos(
+    3 * n_particles, "ptcl init position");
+  Omega_h::Write<Omega_h::I8> h_part_in_adv_que_read(n_particles, 0, "ptcl in adv read");
+  Omega_h::HostWrite<Omega_h::I8> h_particle_in_adv_queue(h_part_in_adv_que_read);
+
+#pragma omp parallel for schedule(runtime)
+  for (int64_t i = 0; i < simulation::advance_particle_queue.size(); i++) {
+    int64_t buffer_idx = simulation::advance_particle_queue[i].idx;
+    Particle& p = simulation::particles[buffer_idx];
+    double distance = p.get_destination_distance();
+    p.is_hit_time_boundary(distance);
+    p.score_the_tallies(distance);
+
+    h_particle_in_adv_queue[buffer_idx] = 1;
+  }
+
+#pragma omp parallel for schedule(runtime)
+  for (int64_t buffer_idx = 0; buffer_idx < n_particles; buffer_idx++) {
+    Particle& p = simulation::particles[buffer_idx];
+    const auto particle_pos = p.r();
+    h_particle_dest_pos[buffer_idx * 3 + 0] = particle_pos[0];
+    h_particle_dest_pos[buffer_idx * 3 + 1] = particle_pos[1];
+    h_particle_dest_pos[buffer_idx * 3 + 2] = particle_pos[2];
+  }
+
+  Omega_h::Reals particle_init_pos(h_particle_dest_pos);
+  Omega_h::Read<Omega_h::I8> in_flight(h_particle_in_adv_queue);
+  // asssign next position to pumipic particles
+  auto particle_dest = pumiinopenmc::pumipic_ptcls->get<1>();
+  auto in_fly        = pumiinopenmc::pumipic_ptcls->get<3>();
+  auto set_particle_dest =
+    PS_LAMBDA(const int& e, const int& pid, const int& mask)
+  {
+    if (mask > 0) {
+      in_fly (pid) = in_flight[pid];
+      particle_dest(pid, 0) = particle_init_pos[3 * pid + 0];
+      particle_dest(pid, 1) = particle_init_pos[3 * pid + 1];
+      particle_dest(pid, 2) = particle_init_pos[3 * pid + 2];
+    }
+  };
+  pumipic::parallel_for(
+    pumiinopenmc::pumipic_ptcls, set_particle_dest, "set new destination");
+
+  // now do the search
+  pumiinopenmc::search_and_rebuild(false);
+}
+
+#endif
+
 void process_advance_particle_events()
 {
   simulation::time_event_advance_particle.start();
+#ifdef OPENMC_USING_PUMIPIC
+  pumipic_event_advance_wrapper();
+#else
   openmc_event_advance_wrapper();
+#endif
 
 #pragma omp parallel for schedule(runtime)
   for (int64_t i = 0; i < simulation::advance_particle_queue.size(); i++) {

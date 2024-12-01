@@ -2,9 +2,11 @@
 #include "openmc/mesh.h"
 #include <Omega_h_shape.hpp>
 #include <pumipic_ptcl_ops.hpp>
+#include <Omega_h_file.hpp>
 
 namespace pumiinopenmc {
 //long double pumipic_tol = 1e-8;
+int64_t pumi_ps_size = 100000;
 PPPS* pumipic_ptcls = nullptr; // Define the variable
 pumipic::Library* pp_lib = nullptr;
 Omega_h::Library oh_lib;
@@ -28,10 +30,11 @@ void pp_move_to_new_element(Omega_h::Mesh &mesh, PPPS *ptcls, Omega_h::Write<Ome
   const auto &face2elems = mesh.ask_up(dim - 1, dim);
   const auto &face2elemElem = face2elems.ab2b;
   const auto &face2elemOffset = face2elems.a2ab;
+  const auto in_flight = ptcls->get<3>();
 
   auto set_next_element =
     PS_LAMBDA(const int &e, const int &pid, const int &mask) {
-    if (mask > 0 && !ptcl_done[pid]) {
+    if (mask > 0 && !ptcl_done[pid] && in_flight(pid)) {
       auto searchElm = elem_ids[pid];
       auto bridge = lastExit[pid];
       auto e2f_first = face2elemOffset[bridge];
@@ -49,18 +52,42 @@ void pp_move_to_new_element(Omega_h::Mesh &mesh, PPPS *ptcls, Omega_h::Write<Ome
   parallel_for(ptcls, set_next_element, "pumipic_set_next_element");
 }
 
+void apply_boundary_condition(Omega_h::Mesh &mesh, PPPS *ptcls,
+  Omega_h::Write<Omega_h::LO> &elem_ids,
+  Omega_h::Write<Omega_h::LO> &ptcl_done,
+  Omega_h::Write<Omega_h::LO> &lastExit,
+  Omega_h::Write<Omega_h::LO> &xFace) {
+
+  // TODO: make this a member variable of the struct
+  const auto &side_is_exposed = Omega_h::mark_exposed_sides(&mesh);
+
+  auto checkExposedEdges =
+    PS_LAMBDA(const int e, const int pid, const int mask) {
+    if (mask > 0 && !ptcl_done[pid]) {
+      assert(lastExit[pid] != -1);
+      const Omega_h::LO bridge = lastExit[pid];
+      const bool exposed = side_is_exposed[bridge];
+      ptcl_done[pid] = exposed;
+      xFace[pid] = lastExit[pid];
+      //elem_ids[pid] = exposed ? -1 : elem_ids[pid];
+    }
+  };
+  pumipic::parallel_for(ptcls, checkExposedEdges, "apply vacumm boundary condition");
+}
+
 PumiParticleAtElemBoundary::PumiParticleAtElemBoundary(Omega_h::LO nelems, Omega_h::LO capacity)
     : flux_(nelems, 0.0, "flux"),
       prev_xpoint_(capacity * 3, 0.0, "prev_xpoint"), initial_(true){
     printf(
       "[INFO] Particle handler at boundary with %d elements and %d "
-      "particles\n",
+      "x points size (3 * n_particles)\n",
       flux_.size(), prev_xpoint_.size());
   }
 
   void PumiParticleAtElemBoundary::operator()(Omega_h::Mesh &mesh, pumiinopenmc::PPPS *ptcls, Omega_h::Write<Omega_h::LO> &elem_ids,
     Omega_h::Write<Omega_h::LO> &inter_faces, Omega_h::Write<Omega_h::LO> &lastExit,
     Omega_h::Write<Omega_h::Real> &inter_points, Omega_h::Write<Omega_h::LO> &ptcl_done) {
+    apply_boundary_condition(mesh, ptcls, elem_ids, ptcl_done, lastExit, inter_faces);
     pp_move_to_new_element(mesh, ptcls, elem_ids, ptcl_done, lastExit);
     if (!initial_) {
       evaluateFlux(ptcls, inter_points);
@@ -86,6 +113,7 @@ PumiParticleAtElemBoundary::PumiParticleAtElemBoundary(Omega_h::LO nelems, Omega
     //Omega_h::Real total_particles = ptcls->nPtcls();
     auto prev_xpoint = prev_xpoint_;
     auto flux = flux_;
+    auto in_flight = ptcls->get<3>();
 
     auto evaluate_flux =
       PS_LAMBDA(const int &e, const int &pid, const int &mask) {
@@ -96,7 +124,7 @@ PumiParticleAtElemBoundary::PumiParticleAtElemBoundary(Omega_h::LO nelems, Omega
           prev_xpoint[pid * 3 + 2]};
 
         Omega_h::Real parsed_dist = Omega_h::norm(dest - orig);  // / total_particles;
-        Kokkos::atomic_add(&flux[e], parsed_dist);
+        Kokkos::atomic_add(&flux[e], parsed_dist * in_flight(pid));
       }
     };
     pumipic::parallel_for(ptcls, evaluate_flux, "flux evaluation loop");
@@ -129,6 +157,14 @@ PumiParticleAtElemBoundary::PumiParticleAtElemBoundary(Omega_h::LO nelems, Omega
     return Omega_h::Reals(normalized_flux);
   }
 
+  void PumiParticleAtElemBoundary::finalizeAndWritePumiFlux(const std::string& filename){
+    Omega_h::Mesh* mesh = p_picparts_->mesh();
+    auto normalized_flux = pumiinopenmc::p_pumi_particle_at_elem_boundary_handler->normalizeFlux(
+        *mesh);
+    pumiinopenmc::full_mesh_.add_tag(Omega_h::REGION, "flux", 1, normalized_flux);
+    Omega_h::vtk::write_parallel(filename, &pumiinopenmc::full_mesh_, 3);
+  }
+
   void pumiUpdatePtclPositions(PPPS *ptcls) {
     auto x_ps_d = ptcls->get<0>();
     auto xtgt_ps_d = ptcls->get<1>();
@@ -152,7 +188,6 @@ PumiParticleAtElemBoundary::PumiParticleAtElemBoundary(Omega_h::LO nelems, Omega
   // search and update parent elements
   //! @param initial initial search finds the initial location of the particles and doesn't tally
   void search_and_rebuild(bool initial){
-    //MPI_Barrier(MPI_COMM_WORLD); Kokkos::fence();
     p_pumi_particle_at_elem_boundary_handler->mark_initial_as(initial);
     Omega_h::LO maxLoops = 1000;
     auto orig = pumipic_ptcls->get<0>();
@@ -174,7 +209,6 @@ PumiParticleAtElemBoundary::PumiParticleAtElemBoundary(Omega_h::LO nelems, Omega
         inter_points_);
     }
     pumiRebuild(p_picparts_, pumipic_ptcls, elem_ids_);
-    //MPI_Barrier(MPI_COMM_WORLD); Kokkos::fence();
   }
 
 } // pumiinopenmc

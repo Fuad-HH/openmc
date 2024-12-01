@@ -223,8 +223,12 @@ void Particle::score_the_tallies(double distance)
   if (!model::active_tracklength_tallies.empty()) {
     score_tracklength_tally(*this, distance);
   }
-
   // Score track-length estimate of k-eff
+  score_non_mesh_track_length_tallies(distance);
+}
+
+void Particle::score_non_mesh_track_length_tallies(double distance)
+{
   if (settings::run_mode == RunMode::EIGENVALUE &&
       this->type() == ParticleType::neutron) {
     this->keff_tally_tracklength() += this->wgt() * distance * this->macro_xs().nu_fission;

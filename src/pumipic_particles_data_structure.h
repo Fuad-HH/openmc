@@ -13,8 +13,8 @@
 #include <pumipic_mesh.hpp>
 
 namespace pumiinopenmc {
-// Particle: origin, destination, particle_id
-typedef pumipic::MemberTypes<pumipic::Vector3d, pumipic::Vector3d, Omega_h::LO>
+// Particle: origin, destination, particle_id, in_advance_particle_queue
+typedef pumipic::MemberTypes<pumipic::Vector3d, pumipic::Vector3d, Omega_h::LO, Omega_h::I16>
   PPParticle;
 typedef pumipic::ParticleStructure<PPParticle> PPPS;
 typedef Kokkos::DefaultExecutionSpace PPExeSpace;
@@ -24,6 +24,7 @@ void init_pumi_libs(int& argc, char**& argv);
 void search_and_rebuild(bool initial);
 
 // Global Variables
+extern int64_t pumi_ps_size;
 extern PPPS* pumipic_ptcls;
 extern pumipic::Library* pp_lib;
 extern Omega_h::Mesh full_mesh_;
@@ -52,6 +53,7 @@ struct PumiParticleAtElemBoundary {
   void updatePrevXPoint(Omega_h::Write<Omega_h::Real> &xpoints);
 
   void evaluateFlux(PPPS *ptcls, Omega_h::Write<Omega_h::Real> &xpoints);
+  void finalizeAndWritePumiFlux(const std::string& filename);
   Omega_h::Reals normalizeFlux(Omega_h::Mesh &mesh);
 
   void mark_initial_as(bool initial);

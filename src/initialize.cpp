@@ -47,12 +47,18 @@
 #ifdef OPENMC_USING_PUMIPIC
 #include "pumipic_particles_data_structure.h"
 
+void set_pumipic_particle_structure_size();
+
+// PumiPIC creates particle data structure
 pumiinopenmc::PPPS* pp_create_particle_structure(Omega_h::Mesh mesh, pumipic::lid_t numPtcls){
   Omega_h::Int ne = mesh.nelems();
   pumiinopenmc::PPPS::kkLidView ptcls_per_elem("ptcls_per_elem", ne);
   pumiinopenmc::PPPS::kkGidView element_gids("element_gids", ne);
 
   Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace> policy;
+
+  Omega_h::parallel_for(
+    ne, OMEGA_H_LAMBDA(const Omega_h::LO &i) { element_gids(i) = i; });
 
   Omega_h::parallel_for(mesh.nelems(),
     OMEGA_H_LAMBDA(Omega_h::LO id){
@@ -95,10 +101,12 @@ void start_pumi_particles_in_0th_element(Omega_h::Mesh& mesh, pumiinopenmc::PPPS
   // assign the location to all particles
   auto init_loc = ptcls->get<0>();
   auto pids     = ptcls->get<2>();
+  auto in_fly   = ptcls->get<3>();
 
   auto set_initial_positions = PS_LAMBDA(const int &e, const int &pid, const int &mask) {
     if (mask>0) {
-      pids(pid) = pid;
+      pids(pid)          = pid;
+      in_fly(pid)        = 1;
       init_loc(pid, 0) = centroid_of_el0[0];
       init_loc(pid, 1) = centroid_of_el0[1];
       init_loc(pid, 2) = centroid_of_el0[2];
@@ -107,7 +115,8 @@ void start_pumi_particles_in_0th_element(Omega_h::Mesh& mesh, pumiinopenmc::PPPS
   pumipic::parallel_for(ptcls, set_initial_positions, "set initial particle positions");
 }
 
-void load_pumipic_mesh_and_init_particles(int& argc, char**& argv) {
+void read_pumipic_lib_and_full_mesh(int& argc, char**& argv)
+{
   openmc::write_message(1, "Reading the Omega_h mesh " + openmc::settings::oh_mesh_fname + " to tally tracklength\n");
   pumiinopenmc::init_pumi_libs(argc, argv);
 
@@ -118,17 +127,24 @@ void load_pumipic_mesh_and_init_particles(int& argc, char**& argv) {
   if (pumiinopenmc::full_mesh_.dim() != 3){
     openmc::fatal_error("PumiPIC only works for 3D mesh now.\n");
   }
-  Omega_h::LO nelems = pumiinopenmc::full_mesh_.nelems();
-  openmc::write_message(1, "PumiPIC Loaded mesh " + openmc::settings::oh_mesh_fname + " with " +  std::to_string(nelems) + " elements...\n");
+  openmc::write_message(1, "PumiPIC Loaded mesh " + openmc::settings::oh_mesh_fname + " with " +  std::to_string(pumiinopenmc::full_mesh_.nelems()) + " elements...\n");
+}
 
-  long int real_n_particles = openmc::settings::n_particles;
-  Omega_h::Write<Omega_h::LO> owners(nelems, 0, "owners");
-  // all the particles are initialized in element 0 to do an initial search to find the starting locations
+Omega_h::Mesh* partition_pumipic_mesh()
+{
+  Omega_h::Write<Omega_h::LO> owners(pumiinopenmc::full_mesh_.nelems(), 0, "owners");
+  // all the particles are initialized in element 0 to do an initial search to
+  // find the starting locations
   // of the openmc given particles.
   pumiinopenmc::p_picparts_ = new pumipic::Mesh(pumiinopenmc::full_mesh_, Omega_h::LOs(owners));
   openmc::write_message(1, "PumiPIC mesh partitioned...\n");
   Omega_h::Mesh *mesh = pumiinopenmc::p_picparts_->mesh();
-  pumiinopenmc::pumipic_ptcls = pp_create_particle_structure(*mesh, real_n_particles);
+  return mesh;
+}
+
+void create_and_initialize_pumi_particle_structure(Omega_h::Mesh* mesh)
+{
+  pumiinopenmc::pumipic_ptcls = pp_create_particle_structure(*mesh, pumiinopenmc::pumi_ps_size);
   start_pumi_particles_in_0th_element(*mesh, pumiinopenmc::pumipic_ptcls);
   pumiinopenmc::p_pumi_particle_at_elem_boundary_handler =
     std::make_unique<pumiinopenmc::PumiParticleAtElemBoundary>(mesh->nelems(),
@@ -138,6 +154,33 @@ void load_pumipic_mesh_and_init_particles(int& argc, char**& argv) {
                         + std::to_string(pumiinopenmc::p_picparts_->mesh()->nelems())
                         + " and " + std::to_string(pumiinopenmc::pumipic_ptcls->capacity())
                         + " as particle structure capacity\n");
+}
+
+void load_pumipic_mesh_and_init_particles(int& argc, char**& argv) {
+  read_pumipic_lib_and_full_mesh(argc, argv);
+  set_pumipic_particle_structure_size();
+  // long int real_n_particles = openmc::settings::n_particles;
+
+  Omega_h::Mesh* mesh = partition_pumipic_mesh();
+  create_and_initialize_pumi_particle_structure(mesh);
+}
+
+void set_pumipic_particle_structure_size()
+{
+  int64_t n_particles; // TODO have a better way to do it than this
+  // FIXME why this work_per rank is not set in the settings by now?
+  if (openmc::settings::max_particles_in_flight == 0 || openmc::simulation::work_per_rank == 0) {
+    n_particles = std::max(openmc::settings::max_particles_in_flight, openmc::simulation::work_per_rank);
+    openmc::write_message(1, "One of max_particles_in_flight or work_per_rank is 0. Setting PumiPIC particle structure size to " + std::to_string(n_particles) + "\n");
+  } else if (openmc::settings::max_particles_in_flight == 0 && openmc::simulation::work_per_rank == 0){
+    openmc::warning("While creating PumiPIC particle structure, both max_particles_in_flight and work_per_rank are 0.\n");
+    n_particles = (openmc::settings::n_particles != 0) ? openmc::settings::n_particles : pumiinopenmc::pumi_ps_size;
+  } else {
+    n_particles = std::min(openmc::settings::max_particles_in_flight, openmc::simulation::work_per_rank);
+    openmc::write_message(1, "Setting PumiPIC particle structure size to " + std::to_string(n_particles) + "\n");
+  }
+  pumiinopenmc::pumi_ps_size = n_particles;
+  openmc::write_message(1, "Creteating PumiPIC particle structure with size " + std::to_string(n_particles) + "\n");
 }
 #endif // OPENMC_USING_PUMIPIC
 
@@ -163,10 +206,6 @@ int openmc_init(int argc, char* argv[], const void* intracomm)
   int err = parse_command_line(argc, argv);
   if (err)
     return err;
-
-#ifdef OPENMC_USING_PUMIPIC
-  load_pumipic_mesh_and_init_particles(argc, argv);
-#endif
 
 #ifdef LIBMESH
   const int n_threads = num_threads();
@@ -232,6 +271,14 @@ int openmc_init(int argc, char* argv[], const void* intracomm)
   // Check for particle restart run
   if (settings::particle_restart_run)
     settings::run_mode = RunMode::PARTICLE;
+
+
+#ifdef OPENMC_USING_PUMIPIC
+  write_message(1, "\n---------------PUMI INIT-------------------\n");
+  write_message(1, "PUMIPIC is initializing particles and mesh for simulation...\n");
+  load_pumipic_mesh_and_init_particles(argc, argv);
+  write_message(1, "------------- PUMI INIT DONE ---------------\n");
+#endif
 
   // Stop initialization timer
   simulation::time_initialize.stop();
