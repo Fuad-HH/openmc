@@ -65,10 +65,10 @@ pumiinopenmc::PPPS* pp_create_particle_structure(Omega_h::Mesh mesh, pumipic::li
       ptcls_per_elem[id] = (id==0) ? numPtcls : 0;
   });
 
-#ifdef PP_USE_GPU // this flag is not added for cpu it will go though else which is okay
-  printf("[INFO] Using GPU for simulation...");
+#ifdef PUMI_USE_KOKKOS_CUDA
+  openmc::write_message("PumiPIC Using GPU for simulation...\n");
   policy =
-    Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace>(10000, Kokkos::AUTO());
+    Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace>(10000, 32);
 #else
   openmc::write_message("PumiPIC Using CPU for simulation...\n");
   policy = Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace>(10000, Kokkos::AUTO());

@@ -36,6 +36,7 @@ option(OPENMC_USE_MCPL        "Enable MCPL"                                     
 option(OPENMC_USE_NCRYSTAL    "Enable support for NCrystal scattering"               OFF)
 option(OPENMC_USE_UWUW        "Enable UWUW"                                          OFF)
 option(OPENMC_USE_PP          "Enable Pumi-PIC based tracklength tally"              OFF)
+option(PP_USE_KOKKOS_CUDA     "Enable Kokkos CUDA backend for Pumi-PIC"              OFF)
 
 # Warnings for deprecated options
 foreach(OLD_OPT IN ITEMS "openmp" "profile" "coverage" "dagmc" "libmesh")
@@ -543,6 +544,9 @@ endif()
 
 if(OPENMC_USE_PP)
   target_compile_definitions(libopenmc PUBLIC -DOPENMC_USING_PUMIPIC)
+  if(PP_USE_KOKKOS_CUDA)
+    target_compile_definitions(libopenmc PUBLIC -DPUMI_USE_KOKKOS_CUDA)
+  endif()
   target_link_libraries(libopenmc pumipic::pumipic)
 endif()
 
