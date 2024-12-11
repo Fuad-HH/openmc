@@ -281,6 +281,9 @@ void print_usage()
       "  -t, --track            Write tracks for all particles (up to "
       "max_tracks)\n"
       "  -e, --event            Run using event-based parallelism\n"
+#ifdef  OPENMC_USE_PUMIPIC
+      "  --ohMesh               Omega_h (required) mesh filename to run with Omega_h mesh\n"
+#endif
       "  -v, --version          Show version information\n"
       "  -h, --help             Show this message\n");
   }

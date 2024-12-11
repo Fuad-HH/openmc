@@ -41,6 +41,10 @@
 #include "libmesh/libmesh.h"
 #endif
 
+#ifdef OPENMC_USE_PUMIPIC
+#include <pumitallyopenmc/pumipic_particle_data_structure.h>
+#endif
+
 int openmc_init(int argc, char* argv[], const void* intracomm)
 {
   using namespace openmc;
@@ -127,6 +131,17 @@ int openmc_init(int argc, char* argv[], const void* intracomm)
   // Check for particle restart run
   if (settings::particle_restart_run)
     settings::run_mode = RunMode::PARTICLE;
+
+#ifdef OPENMC_USE_PUMIPIC
+  if (!settings::oh_mesh_fname.empty()){
+    write_message(1, "\n---------------PUMI INIT-------------------\n");
+    write_message(1, "PUMIPIC is initializing particles and mesh for simulation...\n");
+    //TODO: instead of max_particles_in_flight, we should use the algorithm used before when used pumi in-situ
+    settings::p_pumi_tally =
+      std::make_unique<pumiinopenmc::PumiTally>(settings::oh_mesh_fname, settings::max_particles_in_flight, argc, argv);
+    write_message(1, "------------- PUMI INIT DONE ---------------\n");
+  }
+#endif
 
   // Stop initialization timer
   simulation::time_initialize.stop();
@@ -268,6 +283,13 @@ int parse_command_line(int argc, char* argv[])
         if (mpi::master) {
           warning("Ignoring number of threads specified on command line.");
         }
+#endif
+
+
+#ifdef OPENMC_USE_PUMIPIC
+      } else if (arg == "--ohMesh") {
+        settings::oh_mesh_fname = std::string(argv[i+1]);
+        i += 1; // skip the file name
 #endif
 
       } else if (arg == "-?" || arg == "-h" || arg == "--help") {

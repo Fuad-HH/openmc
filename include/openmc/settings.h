@@ -14,6 +14,11 @@
 #include "openmc/constants.h"
 #include "openmc/vector.h"
 
+#ifdef OPENMC_USE_PUMIPIC
+#include <memory>
+#include <pumitallyopenmc/pumipic_particle_data_structure.h>
+#endif
+
 namespace openmc {
 
 // Type of surface source write
@@ -84,6 +89,10 @@ extern std::string path_sourcepoint;      //!< path to a source file
 extern std::string path_statepoint;       //!< path to a statepoint file
 extern std::string weight_windows_file;   //!< Location of weight window file to
                                           //!< load on simulation initialization
+#ifdef OPENMC_USE_PUMIPIC
+extern std::string oh_mesh_fname; //!< path to the Omega_h mesh for PumiPIC
+extern std::unique_ptr<pumiinopenmc::PumiTally> p_pumi_tally; // PumiPIC tally
+#endif
 
 // This is required because the c_str() may not be the first thing in
 // std::string. Sometimes it is, but it seems libc++ may not be like that

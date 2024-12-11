@@ -41,6 +41,11 @@
 #include <cmath>
 #include <string>
 
+
+#ifdef OPENMC_USE_PUMIPIC
+#include <pumitallyopenmc/pumipic_particle_data_structure.h>
+#endif
+
 //==============================================================================
 // C API functions
 //==============================================================================
@@ -191,6 +196,10 @@ int openmc_simulation_finalize()
 
 #ifdef OPENMC_MPI
   broadcast_results();
+#endif
+
+#ifdef OPENMC_USE_PUMIPIC
+  settings::p_pumi_tally->write_pumi_tally_mesh();
 #endif
 
   // Write tally results to tallies.out
