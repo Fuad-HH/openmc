@@ -92,6 +92,8 @@ extern std::string weight_windows_file;   //!< Location of weight window file to
 #ifdef OPENMC_USE_PUMIPIC
 extern std::string oh_mesh_fname; //!< path to the Omega_h mesh for PumiPIC
 extern std::unique_ptr<pumiinopenmc::PumiTally> p_pumi_tally; // PumiPIC tally
+extern std::vector<double> particle_positions; // PumiPIC particle positions
+extern std::vector<int8_t> particle_in_advance_queue; // PumiPIC particle in advance queue
 #endif
 
 // This is required because the c_str() may not be the first thing in

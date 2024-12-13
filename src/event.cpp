@@ -67,18 +67,15 @@ void process_init_events(int64_t n_particles, int64_t source_offset)
     dispatch_xs_event(i);
   }
 
-  std::vector<double> particle_positions;
-  particle_positions.resize(settings::max_particles_in_flight*3);
-
 #pragma  omp parallel for schedule(runtime)
   for (int64_t i = 0; i<n_particles; i++) {
     const auto particle_pos = simulation::particles[i].r();
-    particle_positions[i * 3 + 0] = particle_pos[0];
-    particle_positions[i * 3 + 1] = particle_pos[1];
-    particle_positions[i * 3 + 2] = particle_pos[2];
+    settings::particle_positions[i * 3 + 0] = particle_pos[0];
+    settings::particle_positions[i * 3 + 1] = particle_pos[1];
+    settings::particle_positions[i * 3 + 2] = particle_pos[2];
   }
 
-  settings::p_pumi_tally->initialize_particle_location(particle_positions.data(),
+  settings::p_pumi_tally->initialize_particle_location(settings::particle_positions.data(),
     settings::max_particles_in_flight*3);
 
   simulation::time_event_init.stop();
@@ -133,10 +130,6 @@ void pumipic_event_advance_wrapper() {
   int64_t n_particles =
     std::min(settings::max_particles_in_flight, simulation::work_per_rank);
   // TODO: replace max_particles in flight with a more dynamic approach
-  std::vector<int8_t> particle_in_advance_queue;
-  std::vector<double> particle_positions;
-  particle_in_advance_queue.resize(settings::max_particles_in_flight);
-  particle_positions.resize(3 * settings::max_particles_in_flight);
 
 #pragma omp parallel for schedule(runtime)
   for (int64_t i = 0; i < simulation::advance_particle_queue.size(); i++) {
@@ -146,20 +139,20 @@ void pumipic_event_advance_wrapper() {
     p.is_hit_time_boundary(distance);
     p.score_the_tallies(distance);
 
-    particle_in_advance_queue[buffer_idx] = 1;
+    settings::particle_in_advance_queue[buffer_idx] = 1;
   }
 
 #pragma omp parallel for schedule(runtime)
   for (int64_t buffer_idx = 0; buffer_idx < n_particles; buffer_idx++) {
     Particle& p = simulation::particles[buffer_idx];
     const auto particle_pos = p.r();
-    particle_positions[buffer_idx * 3 + 0] = particle_pos[0];
-    particle_positions[buffer_idx * 3 + 1] = particle_pos[1];
-    particle_positions[buffer_idx * 3 + 2] = particle_pos[2];
+    settings::particle_positions[buffer_idx * 3 + 0] = particle_pos[0];
+    settings::particle_positions[buffer_idx * 3 + 1] = particle_pos[1];
+    settings::particle_positions[buffer_idx * 3 + 2] = particle_pos[2];
   }
 
   settings::p_pumi_tally->move_to_next_location(
-    particle_positions.data(), particle_in_advance_queue.data(), settings::max_particles_in_flight*3);
+    settings::particle_positions.data(), settings::particle_in_advance_queue.data(), settings::max_particles_in_flight*3);
 }
 #endif
 

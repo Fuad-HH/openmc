@@ -93,6 +93,8 @@ std::string weight_windows_file;
 #ifdef OPENMC_USE_PUMIPIC
 std::string oh_mesh_fname;
 std::unique_ptr<pumiinopenmc::PumiTally> p_pumi_tally;
+std::vector<double> particle_positions;
+std::vector<int8_t> particle_in_advance_queue;
 #endif
 
 int32_t n_inactive {0};
