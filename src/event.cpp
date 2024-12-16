@@ -67,6 +67,7 @@ void process_init_events(int64_t n_particles, int64_t source_offset)
     dispatch_xs_event(i);
   }
 
+  auto start_time = std::chrono::steady_clock::now();
 #pragma  omp parallel for schedule(runtime)
   for (int64_t i = 0; i<n_particles; i++) {
     const auto particle_pos = simulation::particles[i].r();
@@ -74,6 +75,7 @@ void process_init_events(int64_t n_particles, int64_t source_offset)
     settings::particle_positions[i * 3 + 1] = particle_pos[1];
     settings::particle_positions[i * 3 + 2] = particle_pos[2];
   }
+  settings::particle_location_copy_time += std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time).count();
 
   settings::p_pumi_tally->initialize_particle_location(settings::particle_positions.data(),
     settings::max_particles_in_flight*3);
@@ -142,6 +144,7 @@ void pumipic_event_advance_wrapper() {
     settings::particle_in_advance_queue[buffer_idx] = 1;
   }
 
+  auto start_time = std::chrono::steady_clock::now();
 #pragma omp parallel for schedule(runtime)
   for (int64_t buffer_idx = 0; buffer_idx < n_particles; buffer_idx++) {
     Particle& p = simulation::particles[buffer_idx];
@@ -150,6 +153,7 @@ void pumipic_event_advance_wrapper() {
     settings::particle_positions[buffer_idx * 3 + 1] = particle_pos[1];
     settings::particle_positions[buffer_idx * 3 + 2] = particle_pos[2];
   }
+  settings::particle_location_copy_time += std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time).count();
 
   settings::p_pumi_tally->move_to_next_location(
     settings::particle_positions.data(), settings::particle_in_advance_queue.data(), settings::max_particles_in_flight*3);

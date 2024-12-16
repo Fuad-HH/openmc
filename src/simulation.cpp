@@ -200,6 +200,8 @@ int openmc_simulation_finalize()
 
 #ifdef OPENMC_USE_PUMIPIC
   settings::p_pumi_tally->write_pumi_tally_mesh();
+  printf("[PUMIPIC COPY TIME] PumiPic took %f seconds to copy positions\n",
+    settings::particle_location_copy_time);
 #endif
 
   // Write tally results to tallies.out
