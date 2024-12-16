@@ -67,6 +67,7 @@ void process_init_events(int64_t n_particles, int64_t source_offset)
     dispatch_xs_event(i);
   }
 
+#ifdef OPENMC_USE_PUMIPIC
   auto start_time = std::chrono::steady_clock::now();
 #pragma  omp parallel for schedule(runtime)
   for (int64_t i = 0; i<n_particles; i++) {
@@ -79,6 +80,7 @@ void process_init_events(int64_t n_particles, int64_t source_offset)
 
   settings::p_pumi_tally->initialize_particle_location(settings::particle_positions.data(),
     settings::max_particles_in_flight*3);
+#endif
 
   simulation::time_event_init.stop();
 }
