@@ -140,8 +140,10 @@ void pumipic_event_advance_wrapper() {
     int64_t buffer_idx = simulation::advance_particle_queue[i].idx;
     Particle& p = simulation::particles[buffer_idx];
     double distance = p.get_destination_distance();
-    p.is_hit_time_boundary(distance);
+    bool is_hit = false;
+    p.is_hit_time_boundary(distance, is_hit);
     p.score_the_tallies(distance);
+    p.set_particle_weight_to_zero_if_it_hit_time_boundary(is_hit);
 
     settings::particle_in_advance_queue[buffer_idx] = 1;
   }
