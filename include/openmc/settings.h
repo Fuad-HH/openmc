@@ -90,6 +90,7 @@ extern std::string path_statepoint;       //!< path to a statepoint file
 extern std::string weight_windows_file;   //!< Location of weight window file to
                                           //!< load on simulation initialization
 #ifdef OPENMC_USE_PUMIPIC
+extern bool pumipic_on; //!< PumiPIC turned on?
 extern std::string oh_mesh_fname; //!< path to the Omega_h mesh for PumiPIC
 extern std::unique_ptr<pumiinopenmc::PumiTally> p_pumi_tally; // PumiPIC tally
 extern std::vector<double> particle_positions; // PumiPIC particle positions

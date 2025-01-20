@@ -68,18 +68,23 @@ void process_init_events(int64_t n_particles, int64_t source_offset)
   }
 
 #ifdef OPENMC_USE_PUMIPIC
-  auto start_time = std::chrono::steady_clock::now();
-#pragma  omp parallel for schedule(runtime)
-  for (int64_t i = 0; i<n_particles; i++) {
-    const auto particle_pos = simulation::particles[i].r();
-    settings::particle_positions[i * 3 + 0] = particle_pos[0];
-    settings::particle_positions[i * 3 + 1] = particle_pos[1];
-    settings::particle_positions[i * 3 + 2] = particle_pos[2];
-  }
-  settings::particle_location_copy_time += std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time).count();
+  if (settings::pumipic_on) {
+    auto start_time = std::chrono::steady_clock::now();
+#pragma omp parallel for schedule(runtime)
+    for (int64_t i = 0; i < n_particles; i++) {
+      const auto particle_pos = simulation::particles[i].r();
+      settings::particle_positions[i * 3 + 0] = particle_pos[0];
+      settings::particle_positions[i * 3 + 1] = particle_pos[1];
+      settings::particle_positions[i * 3 + 2] = particle_pos[2];
+    }
+    settings::particle_location_copy_time += std::chrono::duration<double>(
+      std::chrono::steady_clock::now() - start_time)
+                                               .count();
 
-  settings::p_pumi_tally->initialize_particle_location(settings::particle_positions.data(),
-    settings::max_particles_in_flight*3);
+    settings::p_pumi_tally->initialize_particle_location(
+      settings::particle_positions.data(),
+      settings::max_particles_in_flight * 3);
+  }
 #endif
 
   simulation::time_event_init.stop();
@@ -170,7 +175,11 @@ void process_advance_particle_events()
 {
   simulation::time_event_advance_particle.start();
 #ifdef OPENMC_USE_PUMIPIC
-  pumipic_event_advance_wrapper();
+  if (settings::pumipic_on) {
+    pumipic_event_advance_wrapper();
+  } else {
+    openmc_event_advance_wrapper();
+  }
 #else
   openmc_event_advance_wrapper();
 #endif

@@ -133,7 +133,7 @@ int openmc_init(int argc, char* argv[], const void* intracomm)
     settings::run_mode = RunMode::PARTICLE;
 
 #ifdef OPENMC_USE_PUMIPIC
-  if (!settings::oh_mesh_fname.empty()){
+  if (settings::pumipic_on){
     write_message(1, "\n---------------PUMI INIT-------------------\n");
     write_message(1, "PUMIPIC is initializing particles and mesh for simulation...\n");
     //TODO: instead of max_particles_in_flight, we should use the algorithm used before when used pumi in-situ
@@ -291,6 +291,7 @@ int parse_command_line(int argc, char* argv[])
 #ifdef OPENMC_USE_PUMIPIC
       } else if (arg == "--ohMesh") {
         settings::oh_mesh_fname = std::string(argv[i+1]);
+        settings::pumipic_on = true;
         i += 1; // skip the file name
 #endif
 
