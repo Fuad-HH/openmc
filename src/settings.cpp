@@ -95,6 +95,7 @@ bool pumipic_on {false};
 std::string oh_mesh_fname;
 std::unique_ptr<pumiinopenmc::PumiTally> p_pumi_tally;
 std::vector<double> particle_positions;
+std::vector<double> particle_weights;
 std::vector<int8_t> particle_in_advance_queue;
 double particle_location_copy_time = 0.0;
 #endif

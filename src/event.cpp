@@ -161,11 +161,13 @@ void pumipic_event_advance_wrapper() {
     settings::particle_positions[buffer_idx * 3 + 0] = particle_pos[0];
     settings::particle_positions[buffer_idx * 3 + 1] = particle_pos[1];
     settings::particle_positions[buffer_idx * 3 + 2] = particle_pos[2];
+
+    settings::particle_weights[buffer_idx] = p.wgt();
   }
   settings::particle_location_copy_time += std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time).count();
 
   settings::p_pumi_tally->move_to_next_location(
-    settings::particle_positions.data(), settings::particle_in_advance_queue.data(), settings::max_particles_in_flight*3);
+    settings::particle_positions.data(), settings::particle_in_advance_queue.data(), settings::particle_weights.data(), settings::max_particles_in_flight*3);
 }
 #endif
 
