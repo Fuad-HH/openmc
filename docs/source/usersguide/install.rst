@@ -408,6 +408,15 @@ OPENMC_USE_MPI
   options, please see the `FindMPI.cmake documentation
   <https://cmake.org/cmake/help/latest/module/FindMPI.html>`_.
 
+.. tip::
+
+    When building on Cray systems with GPU-enabled nodes (e.g., NERSC
+    Perlmutter), Cray MPICH includes a GPU Transport Layer (GTL) that depends on
+    the CUDA runtime. This can cause linking failures even though OpenMC does not
+    use CUDA. If you encounter ``undefined reference to CUDA symbols`` errors,
+    either load the ``cudatoolkit`` module or set ``MPICH_GPU_SUPPORT_ENABLED=0``
+    before building. See :ref:`usersguide_troubleshoot` for details.
+
 To set any of these options (e.g., turning on profiling), the following form
 should be used:
 

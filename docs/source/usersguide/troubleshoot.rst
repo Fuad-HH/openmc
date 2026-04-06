@@ -11,6 +11,87 @@ Problems with Compilation
 If you are experiencing problems trying to compile OpenMC, first check if the
 error you are receiving is among the following options.
 
+Undefined reference to CUDA symbols when linking (Cray systems)
+***************************************************************
+
+When building OpenMC with MPI on Cray systems that have GPUs (e.g., NERSC
+Perlmutter, OLCF Frontier), you may encounter linker errors like::
+
+    /usr/bin/ld: /opt/cray/pe/mpich/.../libmpi_gtl_cuda.so.0: undefined reference to `__cudaUnregisterFatBinary@@libcudart.so.12'
+    /usr/bin/ld: /opt/cray/pe/mpich/.../libmpi_gtl_cuda.so.0: undefined reference to `cudaDeviceGetPCIBusId@@libcudart.so.12'
+
+or a warning::
+
+    /usr/bin/ld: warning: libcudart.so.12, needed by /opt/cray/pe/mpich/.../libmpi_gtl_cuda.so.0, not found (try using -rpath or -rpath-link)
+
+This happens even though OpenMC does not use CUDA. On these systems, Cray MPICH
+ships with a GPU Transport Layer (GTL) library (``libmpi_gtl_cuda.so``) that
+depends on the CUDA runtime. When the linker resolves the MPI library
+dependencies, it pulls in the GTL shared library and then fails because the
+CUDA runtime library (``libcudart``) is not on the linker search path.
+
+There are several ways to resolve this:
+
+1. **Load the CUDA toolkit module** so the linker can find ``libcudart``. This is
+   the simplest fix even if your application does not use CUDA directly:
+
+   .. code-block:: sh
+
+       module load cudatoolkit
+
+   After loading the module, re-run your CMake configure and build steps.
+
+2. **Disable the GPU Transport Layer** by unsetting or overriding the
+   environment variable that enables it. On Cray systems this is typically
+   controlled by ``MPICH_GPU_SUPPORT_ENABLED``:
+
+   .. code-block:: sh
+
+       export MPICH_GPU_SUPPORT_ENABLED=0
+
+   This tells the MPI library not to use the GPU transport layer at link time
+   and at runtime.
+
+3. **Use the** ``craype-accel-nvidia80`` **(or similar) module**, which will set up
+   the compiler wrappers to automatically link the CUDA runtime:
+
+   .. code-block:: sh
+
+       module load craype-accel-nvidia80
+
+4. **When building with Spack**, add the CUDA toolkit to the linker search path
+   via a ``packages.yaml`` or by adding compiler flags in your Spack
+   environment:
+
+   .. code-block:: yaml
+
+       # In packages.yaml or spack.yaml
+       packages:
+         mpich:
+           buildable: false
+           externals:
+           - spec: mpich@8.1.30
+             prefix: /opt/cray/pe/mpich/8.1.30/ofi/gnu/12.3
+             extra_attributes:
+               environment:
+                 prepend_path:
+                   LD_LIBRARY_PATH: /opt/nvidia/hpc_sdk/.../cuda/12.x/lib64
+
+   Alternatively, load ``cudatoolkit`` in your Spack environment's
+   ``modules:`` list or set ``LDFLAGS`` to include the CUDA library path before
+   invoking ``spack install``:
+
+   .. code-block:: sh
+
+       export LDFLAGS="-L/path/to/cuda/lib64"
+       spack install openmc +mpi
+
+.. note::
+
+    This issue is not specific to OpenMC --- it affects any non-CUDA application
+    that links against Cray MPICH on GPU-enabled nodes. The root cause is that
+    Cray MPICH's GTL library unconditionally depends on ``libcudart``.
+
 -------------------------
 Problems with Simulations
 -------------------------
