@@ -140,6 +140,7 @@ int openmc_init(int argc, char* argv[], const void* intracomm)
     settings::p_pumi_tally =
       std::make_unique<pumiinopenmc::PumiTally>(settings::oh_mesh_fname, settings::max_particles_in_flight, argc, argv);
     settings::particle_positions.resize(settings::max_particles_in_flight*3);
+    settings::particle_start_positions.resize(settings::max_particles_in_flight*3);
     settings::particle_in_advance_queue.resize(settings::max_particles_in_flight);
     settings::particle_weights.resize(settings::max_particles_in_flight);
     write_message(1, "------------- PUMI INIT DONE ---------------\n");

@@ -157,6 +157,13 @@ void pumipic_event_advance_wrapper() {
 #pragma omp parallel for schedule(runtime)
   for (int64_t buffer_idx = 0; buffer_idx < n_particles; buffer_idx++) {
     Particle& p = simulation::particles[buffer_idx];
+
+    const auto particle_last_pos = p.r_last();
+    settings::particle_start_positions[buffer_idx * 3 + 0] = particle_last_pos[0];
+    settings::particle_start_positions[buffer_idx * 3 + 1] = particle_last_pos[1];
+    settings::particle_start_positions[buffer_idx * 3 + 2] = particle_last_pos[2];
+
+
     const auto particle_pos = p.r();
     settings::particle_positions[buffer_idx * 3 + 0] = particle_pos[0];
     settings::particle_positions[buffer_idx * 3 + 1] = particle_pos[1];
@@ -167,7 +174,7 @@ void pumipic_event_advance_wrapper() {
   settings::particle_location_copy_time += std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time).count();
 
   settings::p_pumi_tally->move_to_next_location(
-    settings::particle_positions.data(), settings::particle_in_advance_queue.data(), settings::particle_weights.data(), settings::max_particles_in_flight*3);
+  settings::particle_start_positions.data(), settings::particle_positions.data(), settings::particle_in_advance_queue.data(), settings::particle_weights.data(), settings::max_particles_in_flight*3);
 }
 #endif
 
