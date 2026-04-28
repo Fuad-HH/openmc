@@ -92,7 +92,7 @@ extern std::string weight_windows_file;   //!< Location of weight window file to
 #ifdef OPENMC_USE_PUMIPIC
 extern bool pumipic_on; //!< PumiPIC turned on?
 extern std::string oh_mesh_fname; //!< path to the Omega_h mesh for PumiPIC
-extern std::unique_ptr<pumiinopenmc::PumiTally> p_pumi_tally; // PumiPIC tally
+extern std::unique_ptr<pumitally::PumiTally> p_pumi_tally; // PumiPIC tally
 extern std::vector<double> particle_positions; // PumiPIC particle positions
 extern std::vector<double> particle_start_positions; // other events also change particle locations
 extern std::vector<double> particle_weights;

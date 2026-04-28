@@ -138,7 +138,7 @@ int openmc_init(int argc, char* argv[], const void* intracomm)
     write_message(1, "PUMIPIC is initializing particles and mesh for simulation...\n");
     //TODO: instead of max_particles_in_flight, we should use the algorithm used before when used pumi in-situ
     settings::p_pumi_tally =
-      std::make_unique<pumiinopenmc::PumiTally>(settings::oh_mesh_fname, settings::max_particles_in_flight, argc, argv);
+      std::make_unique<pumitally::PumiTally>(settings::oh_mesh_fname, settings::max_particles_in_flight, argc, argv);
     settings::particle_positions.resize(settings::max_particles_in_flight*3);
     settings::particle_start_positions.resize(settings::max_particles_in_flight*3);
     settings::particle_in_advance_queue.resize(settings::max_particles_in_flight);

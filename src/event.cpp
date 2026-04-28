@@ -81,7 +81,7 @@ void process_init_events(int64_t n_particles, int64_t source_offset)
       std::chrono::steady_clock::now() - start_time)
                                                .count();
 
-    settings::p_pumi_tally->initialize_particle_location(
+    settings::p_pumi_tally->CopyInitialPosition(
       settings::particle_positions.data(),
       settings::max_particles_in_flight * 3);
   }
@@ -173,7 +173,7 @@ void pumipic_event_advance_wrapper() {
   }
   settings::particle_location_copy_time += std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time).count();
 
-  settings::p_pumi_tally->move_to_next_location(
+  settings::p_pumi_tally->MoveToNextLocation(
   settings::particle_start_positions.data(), settings::particle_positions.data(), settings::particle_in_advance_queue.data(), settings::particle_weights.data(), settings::max_particles_in_flight*3);
 }
 #endif

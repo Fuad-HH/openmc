@@ -200,7 +200,7 @@ int openmc_simulation_finalize()
 
 #ifdef OPENMC_USE_PUMIPIC
   if (settings::pumipic_on) {
-    settings::p_pumi_tally->write_pumi_tally_mesh();
+    settings::p_pumi_tally->WriteTallyResults();
     printf("[PUMIPIC COPY TIME] PumiPic took %f seconds to copy positions\n",
       settings::particle_location_copy_time);
 
