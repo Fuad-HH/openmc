@@ -67,8 +67,8 @@ void process_init_events(int64_t n_particles, int64_t source_offset)
     dispatch_xs_event(i);
   }
 
-#ifdef OPENMC_USE_PUMIPIC
-  if (settings::pumipic_on) {
+#ifdef OPENMC_USE_PUMITALLY
+  if (settings::pumitally_on) {
     auto start_time = std::chrono::steady_clock::now();
 #pragma omp parallel for schedule(runtime)
     for (int64_t i = 0; i < n_particles; i++) {
@@ -134,8 +134,8 @@ void openmc_event_advance_wrapper()
   }
 }
 
-#ifdef OPENMC_USE_PUMIPIC
-void pumipic_event_advance_wrapper() {
+#ifdef OPENMC_USE_PUMITALLY
+void pumitally_event_advance_wrapper() {
   int64_t n_particles =
     std::min(settings::max_particles_in_flight, simulation::work_per_rank);
   // TODO: replace max_particles in flight with a more dynamic approach
@@ -183,9 +183,9 @@ void send_particles_to_other_queues();
 void process_advance_particle_events()
 {
   simulation::time_event_advance_particle.start();
-#ifdef OPENMC_USE_PUMIPIC
-  if (settings::pumipic_on) {
-    pumipic_event_advance_wrapper();
+#ifdef OPENMC_USE_PUMITALLY
+  if (settings::pumitally_on) {
+    pumitally_event_advance_wrapper();
   } else {
     openmc_event_advance_wrapper();
   }

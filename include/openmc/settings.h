@@ -14,9 +14,9 @@
 #include "openmc/constants.h"
 #include "openmc/vector.h"
 
-#ifdef OPENMC_USE_PUMIPIC
+#ifdef OPENMC_USE_PUMITALLY
 #include <memory>
-#include <pumitallyopenmc/pumipic_particle_data_structure.h>
+#include <pumitally/PumiTally.h>
 #endif
 
 namespace openmc {
@@ -89,15 +89,15 @@ extern std::string path_sourcepoint;      //!< path to a source file
 extern std::string path_statepoint;       //!< path to a statepoint file
 extern std::string weight_windows_file;   //!< Location of weight window file to
                                           //!< load on simulation initialization
-#ifdef OPENMC_USE_PUMIPIC
-extern bool pumipic_on; //!< PumiPIC turned on?
-extern std::string oh_mesh_fname; //!< path to the Omega_h mesh for PumiPIC
-extern std::unique_ptr<pumitally::PumiTally> p_pumi_tally; // PumiPIC tally
-extern std::vector<double> particle_positions; // PumiPIC particle positions
+#ifdef OPENMC_USE_PUMITALLY
+extern bool pumitally_on; //!< PumiTally turned on?
+extern std::string oh_mesh_fname; //!< path to the Omega_h mesh for PumiTally
+extern std::unique_ptr<pumitally::PumiTally> p_pumi_tally; //!< PumiTally handle
+extern std::vector<double> particle_positions; // Flattened particle positions for PumiTally
 extern std::vector<double> particle_start_positions; // other events also change particle locations
 extern std::vector<double> particle_weights;
-extern std::vector<int8_t> particle_in_advance_queue; // PumiPIC particle in advance queue
-extern double particle_location_copy_time; // PumiPIC particle location copy time
+extern std::vector<int8_t> particle_in_advance_queue; // PumiTally particle in advance queue
+extern double particle_location_copy_time; // PumiTally particle location copy time
 #endif
 
 // This is required because the c_str() may not be the first thing in

@@ -41,8 +41,8 @@
 #include "libmesh/libmesh.h"
 #endif
 
-#ifdef OPENMC_USE_PUMIPIC
-#include <pumitallyopenmc/pumipic_particle_data_structure.h>
+#ifdef OPENMC_USE_PUMITALLY
+#include <pumitally/PumiTally.h>
 #endif
 
 int openmc_init(int argc, char* argv[], const void* intracomm)
@@ -132,10 +132,10 @@ int openmc_init(int argc, char* argv[], const void* intracomm)
   if (settings::particle_restart_run)
     settings::run_mode = RunMode::PARTICLE;
 
-#ifdef OPENMC_USE_PUMIPIC
-  if (settings::pumipic_on){
+#ifdef OPENMC_USE_PUMITALLY
+  if (settings::pumitally_on){
     write_message(1, "\n---------------PUMI INIT-------------------\n");
-    write_message(1, "PUMIPIC is initializing particles and mesh for simulation...\n");
+    write_message(1, "PUMITally is initializing particles and mesh for simulation...\n");
     //TODO: instead of max_particles_in_flight, we should use the algorithm used before when used pumi in-situ
     settings::p_pumi_tally =
       std::make_unique<pumitally::PumiTally>(settings::oh_mesh_fname, settings::max_particles_in_flight, argc, argv);
@@ -290,10 +290,10 @@ int parse_command_line(int argc, char* argv[])
 #endif
 
 
-#ifdef OPENMC_USE_PUMIPIC
+#ifdef OPENMC_USE_PUMITALLY
       } else if (arg == "--ohMesh") {
         settings::oh_mesh_fname = std::string(argv[i+1]);
-        settings::pumipic_on = true;
+        settings::pumitally_on = true;
         i += 1; // skip the file name
 #endif
 

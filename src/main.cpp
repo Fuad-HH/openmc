@@ -66,7 +66,7 @@ int main(int argc, char* argv[])
 
     // If MPI is in use and enabled, terminate it
 #ifdef OPENMC_MPI
-#ifndef OPENMC_USE_PUMIPIC
+#ifndef OPENMC_USE_PUMITALLY
   MPI_Finalize();
 #endif
 #endif

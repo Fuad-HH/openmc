@@ -42,8 +42,8 @@
 #include <string>
 
 
-#ifdef OPENMC_USE_PUMIPIC
-#include <pumitallyopenmc/pumipic_particle_data_structure.h>
+#ifdef OPENMC_USE_PUMITALLY
+#include <pumitally/PumiTally.h>
 #endif
 
 //==============================================================================
@@ -198,10 +198,10 @@ int openmc_simulation_finalize()
   broadcast_results();
 #endif
 
-#ifdef OPENMC_USE_PUMIPIC
-  if (settings::pumipic_on) {
+#ifdef OPENMC_USE_PUMITALLY
+  if (settings::pumitally_on) {
     settings::p_pumi_tally->WriteTallyResults();
-    printf("[PUMIPIC COPY TIME] PumiPic took %f seconds to copy positions\n",
+    printf("[PUMITALLY COPY TIME] PumiTally took %f seconds to copy positions\n",
       settings::particle_location_copy_time);
 
     settings::p_pumi_tally.reset(nullptr);

@@ -35,7 +35,7 @@ option(OPENMC_USE_MPI         "Enable MPI"                                      
 option(OPENMC_USE_MCPL        "Enable MCPL"                                          OFF)
 option(OPENMC_USE_NCRYSTAL    "Enable support for NCrystal scattering"               OFF)
 option(OPENMC_USE_UWUW        "Enable UWUW"                                          OFF)
-option(OPENMC_USE_PUMIPIC     "Enable support for PUMI-PIC mesh tallies"             OFF)
+option(OPENMC_USE_PUMITALLY   "Enable support for PUMI-Tally"                        OFF)
 
 # Warnings for deprecated options
 foreach(OLD_OPT IN ITEMS "openmp" "profile" "coverage" "dagmc" "libmesh")
@@ -134,11 +134,11 @@ if(OPENMC_USE_DAGMC)
 endif()
 
 #===============================================================================
-# PUMI-PIC Mesh Tallies Support
+# PUMI-Tally Support
 #===============================================================================
-if(OPENMC_USE_PUMIPIC)
-  find_package(pumitallyopenmc REQUIRED)
-  message(STATUS "Found PUMI Tally for OpenMC: ${PUMI_DIR}")
+if(OPENMC_USE_PUMITALLY)
+  find_package(pumitally REQUIRED)
+  message(STATUS "Found PUMI-Tally for OpenMC: ${PUMI_DIR}")
 endif()
 
 #===============================================================================
@@ -534,9 +534,9 @@ if(OPENMC_USE_LIBMESH)
   target_link_libraries(libopenmc PkgConfig::LIBMESH)
 endif()
 
-if(OPENMC_USE_PUMIPIC)
-  target_compile_definitions(libopenmc PRIVATE -DOPENMC_USE_PUMIPIC)
-  target_link_libraries(libopenmc pumitallyopenmc::pumitallyopenmc)
+if(OPENMC_USE_PUMITALLY)
+  target_compile_definitions(libopenmc PRIVATE -DOPENMC_USE_PUMITALLY)
+  target_link_libraries(libopenmc pumitally::pumitally)
 endif()
 
 if (PNG_FOUND)
