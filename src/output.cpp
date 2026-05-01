@@ -322,6 +322,7 @@ void print_build_info()
   std::string mcpl(n);
   std::string ncrystal(n);
   std::string uwuw(n);
+  std::string pumi_tally(n);
 
 #ifdef PHDF5
   phdf5 = y;
@@ -353,6 +354,9 @@ void print_build_info()
 #ifdef OPENMC_UWUW
   uwuw = y;
 #endif
+#ifdef OPENMC_USE_PUMITALLY
+  pumi_tally = y;
+#endif
 
   // Wraps macro variables in quotes
 #define STRINGIFY(x) STRINGIFY2(x)
@@ -372,6 +376,7 @@ void print_build_info()
     fmt::print("Coverage testing:      {}\n", coverage);
     fmt::print("Profiling flags:       {}\n", profiling);
     fmt::print("UWUW support:          {}\n", uwuw);
+    fmt::print("PUMI-Tally support:    {}\n", pumi_tally);
   }
 }
 
