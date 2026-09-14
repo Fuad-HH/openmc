@@ -401,11 +401,46 @@ void initialize_batch()
   setup_active_tallies();
 }
 
+#ifdef OPENMC_USE_PUMITALLY
+//! Close out the PUMI-Tally batch the same way OpenMC closes out its own
+//! tallies for each batch
+void accumulate_pumi_tally()
+{
+  // Batches before the first active one must not contribute to the result.
+  // OpenMC handles this by only accumulating tallies in model::active_tallies,
+  // which stays empty until initialize_batch() activates them.
+  // TODO: Instead of discarding here, don't compute when inactive
+  if (simulation::current_batch <= settings::n_inactive) {
+    settings::p_pumi_tally->DiscardBatchTally();
+    return;
+  }
+
+  // Same normalization as Tally::accumulate()
+  double total_source = 0.0;
+  if (settings::run_mode == RunMode::FIXED_SOURCE &&
+      !settings::uniform_source_sampling) {
+    for (const auto& s : model::external_sources) {
+      total_source += s->strength();
+    }
+  } else {
+    total_source = 1.0;
+  }
+  const double norm = total_source / static_cast<double>(settings::n_particles * settings::gen_per_batch);
+
+  settings::p_pumi_tally->AccumulateBatchTally(norm);
+}
+#endif
+
 void finalize_batch()
 {
   // Reduce tallies onto master process and accumulate
   simulation::time_tallies.start();
   accumulate_tallies();
+#ifdef OPENMC_USE_PUMITALLY
+  if (settings::pumitally_on) {
+    accumulate_pumi_tally();
+  }
+#endif
   simulation::time_tallies.stop();
 
   // update weight windows if needed
